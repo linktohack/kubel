@@ -264,7 +264,7 @@ CMD is the command string to run."
   (kubel--log-command "kubectl-command" cmd)
   (with-output-to-string
     (with-current-buffer standard-output
-      (shell-command cmd t "*kubel stderr*"))))
+      (shell-command (s-concat cmd " | expand") t "*kubel stderr*"))))
 
 (defvar kubel-namespace "default"
   "Current namespace.")
@@ -315,7 +315,11 @@ CMD is the command string to run."
 
 (defun kubel--populate-list ()
   "Return a list with a tabulated list format and \"tabulated-list-entries\"."
-  (let*  ((body (kubel--exec-to-string (concat (kubel--get-command-prefix) " get " kubel-resource)))
+  (let*  ((body (kubel--exec-to-string (pcase kubel-resource
+                                         ("Charts" (concat (->> (kubel--get-command-prefix)
+                                                                (s-replace "kubectl" "helm")
+                                                                (s-replace "--context" "--kube-context")) " list | expand"))
+                                         (_ (concat (kubel--get-command-prefix) " get " kubel-resource)))))
           (entrylist (kubel--parse-body body)))
     (when (string-prefix-p "No resources found" body)
       (message "No resources found"))  ;; TODO exception here
@@ -483,7 +487,23 @@ READONLY If true buffer will be in readonly mode(view-mode)."
     (setq process-name "kubel-command"))
   (let ((buffer-name (format "*%s*" process-name))
         (error-buffer (kubel--process-error-buffer process-name))
-        (cmd (append (list kubel-kubectl) (kubel--get-context-namespace) args)))
+        (cmd (pcase args
+               (`("get" "Charts" . ,rest) (append (list "helm")
+                                                  (->> (kubel--get-context-namespace)
+                                                       (-map #'(lambda (it)
+                                                                 (if (equal it "--context")
+                                                                     "--kube-context"
+                                                                   it))))
+                                                  (list "get" "values")
+                                                  rest))
+               (`("upgrade" . ,_) (append (list "helm")
+                                          (->> (kubel--get-context-namespace)
+                                               (-map #'(lambda (it)
+                                                         (if (equal it "--context")
+                                                             "--kube-context"
+                                                           it))))
+                                          args))
+               (_ (append (list kubel-kubectl) (kubel--get-context-namespace) args)))))
     (when (get-buffer buffer-name)
       (kill-buffer buffer-name))
     (when (get-buffer error-buffer)
@@ -642,7 +662,15 @@ Use C-c C-c to kubectl apply the current yaml buffer."
       (unless  (file-exists-p (format "%s/tmp/kubel" dir-prefix))
         (make-directory (format "%s/tmp/kubel" dir-prefix) t))
       (write-region (point-min) (point-max) filename)
-      (kubel--exec (format "kubectl - apply - %s" filename) (list "apply" "-f" filename-without-tramp-prefix))
+      (kubel--exec (format "kubectl - apply - %s" filename) (pcase kubel-resource
+                                                              ("Charts" (list "upgrade"
+                                                                              (->> (buffer-name)
+                                                                                   (replace-regexp-in-string "\*" "")
+                                                                                   (s-split " - ")
+                                                                                   (-last-item))
+                                                                              (read-string "Chart: ")
+                                                                              "-f" filename-without-tramp-prefix))
+                                                              (_ (list "apply" "-f" filename-without-tramp-prefix))))
       (message "Applied %s" filename))))
 
 (defun kubel-get-resource-details (&optional describe)
@@ -838,8 +866,10 @@ ARGS is the arguments list from transient."
 
 (defun kubel--fetch-api-resource-list ()
   "Fetch the API resource list."
-  (split-string (kubel--exec-to-string
-                 (format "%s --context %s api-resources -o name --no-headers=true" kubel-kubectl kubel-context)) "\n" t))
+  (append
+   (split-string (kubel--exec-to-string
+                  (format "%s --context %s api-resources -o name --no-headers=true" kubel-kubectl kubel-context)) "\n" t)
+   (when (executable-find "helm") '("Charts"))))
 
 (defun kubel-set-resource (&optional refresh)
   "Set the resource.
