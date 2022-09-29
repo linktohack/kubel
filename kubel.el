@@ -322,8 +322,11 @@ CMD is the command string to run."
   (let*  ((body (kubel--exec-to-string (pcase kubel-resource
                                          ("Charts" (concat (->> (kubel--get-command-prefix)
                                                                 (s-replace "kubectl" "helm")
-                                                                (s-replace "--context" "--kube-context")) " list | expand"))
-                                         (_ (concat (kubel--get-command-prefix) " get " kubel-resource)))))
+                                                                (s-replace "--context" "--kube-context"))
+                                                           " list"
+                                                           (if (s-starts-with-p "All" kubel-namespace) " -A" "")))
+                                         (_ (concat (kubel--get-command-prefix) " get " kubel-resource
+                                                    (if (s-starts-with-p "All" kubel-namespace) " -A" ""))))))
           (entrylist (kubel--parse-body body)))
     (when (string-prefix-p "No resources found" body)
       (message "No resources found"))  ;; TODO exception here
@@ -498,7 +501,7 @@ READONLY If true buffer will be in readonly mode(view-mode)."
                                                                  (if (equal it "--context")
                                                                      "--kube-context"
                                                                    it))))
-                                                  (list "get" "values")
+                                                  '("get" "values")
                                                   rest))
                (`("upgrade" . ,_) (append (list "helm")
                                           (->> (kubel--get-context-namespace)
@@ -527,6 +530,10 @@ READONLY If true buffer will be in readonly mode(view-mode)."
 (defun kubel--get-resource-under-cursor ()
   "Utility function to get the name of the resource under the cursor.
 Strip the `*` prefix if the resource is selected"
+  (when-let ((i (-find-index #'(lambda (it) (equal "NAMESPACE" (seq-first it)))
+                             (seq-into tabulated-list-format 'list))))
+    (if (s-starts-with-p "All" kubel-namespace)
+        (setq kubel-namespace (format "All|%s" (aref (tabulated-list-get-entry) i)))))
   (when-let ((i (-find-index #'(lambda (it) (equal "CHART" (seq-first it)))
 			     (seq-into tabulated-list-format 'list))))
     (setq kubel--helm-chart-current (aref (tabulated-list-get-entry) i)))
@@ -541,8 +548,10 @@ Strip the `*` prefix if the resource is selected"
   (append
    (unless (equal kubel-context "")
      (list "--context" kubel-context))
-   (unless (equal kubel-namespace "default")
-     (list "-n" kubel-namespace))))
+   (unless (or (equal kubel-namespace "default")
+               (equal kubel-namespace "All")
+               (equal kubel-namespace "All|default"))
+     (list "-n" (s-replace "All|" "" kubel-namespace)))))
 
 (defun kubel--get-selector ()
   "Utility function to return current label selector."
@@ -814,8 +823,10 @@ ARGS is the arguments list from transient."
   "Get namespaces for current context, try to recover from cache first."
   (unless kubel--namespace-list-cached
     (setq kubel--namespace-list-cached
-          (split-string (kubel--exec-to-string
-                         (format "%s --context %s get namespace -o jsonpath='{.items[*].metadata.name}'" kubel-kubectl kubel-context)) " ")))
+          (append
+           (split-string (kubel--exec-to-string
+			  (format "%s --context %s get namespace -o jsonpath='{.items[*].metadata.name}'" kubel-kubectl kubel-context)) " ")
+           '("All"))))
   kubel--namespace-list-cached)
 
 (defun kubel--list-namespace ()
