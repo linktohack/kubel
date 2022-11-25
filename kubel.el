@@ -297,6 +297,10 @@ CMD is the command string to run."
 
 (defvar kubel--label-values-cached nil)
 
+(defvar kubel--helm-charts-cached nil)
+
+(defvar kubel--helm-chart-current nil)
+
 (defvar kubel--selected-items '())
 
 (defun kubel--kubernetes-resources-list ()
@@ -523,9 +527,14 @@ READONLY If true buffer will be in readonly mode(view-mode)."
 (defun kubel--get-resource-under-cursor ()
   "Utility function to get the name of the resource under the cursor.
 Strip the `*` prefix if the resource is selected"
-  (string-remove-suffix " (default)" ;; see https://github.com/abrochard/kubel/issues/106
-                        (replace-regexp-in-string
-                         "^\*" "" (aref (tabulated-list-get-entry) 0))))
+  (when-let ((i (-find-index #'(lambda (it) (equal "CHART" (seq-first it)))
+			     (seq-into tabulated-list-format 'list))))
+    (setq kubel--helm-chart-current (aref (tabulated-list-get-entry) i)))
+  (let ((i (-find-index #'(lambda (it) (equal "NAME" (seq-first it)))
+			(seq-into tabulated-list-format 'list))))
+    (string-remove-suffix " (default)" ;; see https://github.com/abrochard/kubel/issues/106
+			  (replace-regexp-in-string
+			   "^\*" "" (aref (tabulated-list-get-entry) i)))))
 
 (defun kubel--get-context-namespace ()
   "Utility function to return the proper context and namespace arguments."
@@ -668,7 +677,19 @@ Use C-c C-c to kubectl apply the current yaml buffer."
                                                                                    (replace-regexp-in-string "\*" "")
                                                                                    (s-split " - ")
                                                                                    (-last-item))
-                                                                              (read-string "Chart: ")
+                                                                              (progn
+                                                                                (unless kubel--helm-charts-cached
+                                                                                  (setq kubel--helm-charts-cached
+                                                                                        (->>
+                                                                                         (shell-command-to-string "helm search repo | awk '{ print $1 }'")
+                                                                                         (s-split "\n")
+                                                                                         (-drop 1)
+                                                                                         (-drop-last 1))))
+                                                                                (let ((chart-name (->> kubel--helm-chart-current
+                                                                                                       (s-split "-")
+                                                                                                       (-drop-last 1)
+                                                                                                       (s-join "-"))))
+                                                                                  (completing-read "Chart: " kubel--helm-charts-cached nil nil (format "/%s" chart-name))))
                                                                               "-f" filename-without-tramp-prefix))
                                                               (_ (list "apply" "-f" filename-without-tramp-prefix))))
       (message "Applied %s" filename))))
@@ -686,6 +707,7 @@ Use C-c C-c to kubectl apply the current yaml buffer."
     (when (or (string-equal kubel-output "yaml") (transient-args 'kubel-describe-popup))
       (yaml-mode)
       (kubel-yaml-editing-mode))
+    (make-local-variable 'kubel--helm-chart-current)
     (goto-char (point-min))))
 
 
