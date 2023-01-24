@@ -1190,8 +1190,11 @@ RESET is to be called if the search is nil after the first attempt."
   "Kubel Log Menu"
   ["Arguments"
    ("-f" "Follow" "-f")
+   ("-n" "Tail" "--tail=")
    ("-p" "Previous" "-p")
-   ("-n" "Tail" "--tail=")]
+   ("-s" "Since" "--since=")
+   ("-S" "Since time" "--since-time=")
+   ("-t" "Include timestamps" "--timestamps")]
   ["Actions"
    ("l" "Tail pod logs" kubel-get-pod-logs)
    ("i" "Tail initContainer logs" kubel-get-pod-logs--initContainer)
