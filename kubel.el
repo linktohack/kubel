@@ -943,8 +943,14 @@ P can be a single number or a localhost:container port pair."
 
 (defun kubel-setup-tramp ()
   "Setup a kubectl TRAMP."
+  (setq tramp-methods (delete (assoc "kubenode" tramp-methods) tramp-methods))
   (setq tramp-methods (delete (assoc "kubectl" tramp-methods) tramp-methods)) ;; cleanup previous tramp method
   ;; TODO error message if resource is not pod
+  (add-to-list 'tramp-methods
+               `("kubenode"
+                 (tramp-login-program      ,kubel-kubectl)
+                 (tramp-login-args         (("node-shell") ("%h")))
+                 (tramp-remote-shell       "sh")))
   (add-to-list 'tramp-methods
                `("kubectl"
                  (tramp-login-program      ,kubel-kubectl)
@@ -1039,6 +1045,33 @@ P can be a single number or a localhost:container port pair."
   (let* ((con-pod (kubel--get-container-under-cursor))
          (command (read-string "Shell command: " (format "%s exec %s -c %s -- " (kubel--get-command-prefix) (cdr con-pod) (car con-pod)))))
     (shell-command command)))
+
+(defun kubel-exec-node ()
+  "Exec into the node under the cursor -> `find-file."
+  (interactive)
+  (kubel-setup-tramp)
+  (let* ((dir-prefix (kubel--dir-prefix))
+         (resource (kubel--get-resource-under-cursor)))
+    (find-file (format "/%skubenode:%s:/" dir-prefix resource))))
+
+(defun kubel-exec-shell-node ()
+  "Exec into the node under the cursor -> shell."
+  (interactive)
+  (kubel-setup-tramp)
+  (let* ((dir-prefix (kubel--dir-prefix))
+         (resource (kubel--get-resource-under-cursor))
+         (default-directory (format "/%skubenode:%s:/" dir-prefix resource)))
+    (shell (format "*kubel - node-shell - %s@%s*" container pod))))
+
+(defun kubel-exec-eshell-node ()
+  "Exec into the node under the cursor -> eshell."
+  (interactive)
+  (kubel-setup-tramp)
+  (let* ((dir-prefix (kubel--dir-prefix))
+         (resource (kubel--get-resource-under-cursor))
+         (default-directory (format "/%skubenode:%s:/" dir-prefix resource))
+         (eshell-buffer-name (format "*kubel - node-eshell - %s@%s*" container pod)))
+    (eshell)))
 
 (defun kubel-delete-resource ()
   "Kubectl delete resource under cursor."
@@ -1229,6 +1262,15 @@ RESET is to be called if the search is nil after the first attempt."
    ("a" "Ansi-term" kubel-exec-ansi-term-pod)
    ("s" "Shell" kubel-exec-shell-pod)])
 
+(transient-define-prefix kubel-exec-node-popup ()
+  "Kubel Exec Node Menu"
+  ["Actions"
+   ;; ("!" "Shell command" kubel-exec-node-by-shell-command)
+   ("d" "Dired" kubel-exec-node)
+   ("e" "Eshell" kubel-exec-eshell-node)
+   ;; ("a" "Ansi-term" kubel-exec-ansi-term-node)
+   ("s" "Shell" kubel-exec-shell-node)])
+
 (transient-define-prefix kubel-log-popup ()
   "Kubel Log Menu"
   ["Arguments"
@@ -1278,6 +1320,7 @@ RESET is to be called if the search is nil after the first attempt."
     ("p" "Port forward" kubel-port-forward-pod)
     ("l" "Logs" kubel-log-popup)
     ("e" "Exec" kubel-exec-popup)
+    ("E" "Exec Node" kubel-exec-node-popup)
     ("j" "Jab" kubel-jab-deployment)
     ("t" "Trigger" kubel-trigger-cronjob)
     ("z" "Suspend" kubel-suspend-cronjob)
@@ -1330,6 +1373,7 @@ RESET is to be called if the search is nil after the first attempt."
     (define-key map (kbd "l") 'kubel-log-popup)
     (define-key map (kbd "c") 'kubel-copy-popup)
     (define-key map (kbd "e") 'kubel-exec-popup)
+    (define-key map (kbd "E") 'kubel-exec-node-popup)
     (define-key map (kbd "!") 'kubel-exec-pod-by-shell-command)
     (define-key map (kbd "j") 'kubel-jab-deployment)
     (define-key map (kbd "t") 'kubel-trigger-cronjob)

@@ -84,6 +84,7 @@
     ("p" "Port forward" kubel-port-forward-pod)
     ("l" "Logs" kubel-log-popup)
     ("e" "Exec" kubel-exec-popup)
+    ("E" "Exec Node" kubel-exec-node-popup)
     ("a" "Jab" kubel-jab-deployment) ;; can't use j here
     ("t" "Trigger" kubel-trigger-cronjob)
     ("z" "Suspend" kubel-suspend-cronjob)
@@ -131,6 +132,7 @@
   (kbd "l") #'kubel-log-popup
   (kbd "c") #'kubel-copy-popup
   (kbd "e") #'kubel-exec-popup
+  (kbd "E") #'kubel-exec-node-popup
   (kbd "a") #'kubel-jab-deployment
   (kbd "t") #'kubel-trigger-cronjob
   (kbd "z") #'kubel-suspend-cronjob
