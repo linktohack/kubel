@@ -85,6 +85,9 @@
     ("l" "Logs" kubel-log-popup)
     ("e" "Exec" kubel-exec-popup)
     ("a" "Jab" kubel-jab-deployment) ;; can't use j here
+    ("t" "Trigger" kubel-trigger-cronjob)
+    ("z" "Suspend" kubel-suspend-cronjob)
+    ("Z" "Unsuspend" kubel-unsuspend-cronjob)
     ("S" "Scale replicas" kubel-scale-replicas)]
    ["Settings"
     ("C" "Set context" kubel-set-context)
@@ -129,6 +132,9 @@
   (kbd "c") #'kubel-copy-popup
   (kbd "e") #'kubel-exec-popup
   (kbd "a") #'kubel-jab-deployment
+  (kbd "t") #'kubel-trigger-cronjob
+  (kbd "z") #'kubel-suspend-cronjob
+  (kbd "Z") #'kubel-unsuspend-cronjob
   (kbd "S") #'kubel-scale-replicas
   (kbd "u") #'kubel-unmark-item
   (kbd "M") #'kubel-mark-all

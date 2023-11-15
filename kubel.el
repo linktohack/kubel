@@ -1080,6 +1080,38 @@ REPLICAS is the number of desired replicas."
      "[%s] cannot be scaled.\nOnly these resources can be scaled: [deployment, replica set, replication controller, and stateful set]."
      kubel-resource)))
 
+(defun kubel-trigger-cronjob ()
+  "Kubectl create job from cronjob under cursor."
+  (interactive)
+  (let ((resource (kubel--get-resource-under-cursor)))
+    (if (equal "cronjobs.batch" kubel-resource)
+        (let* ((process-name (format "kubel - trigger cronjob %s - %s" kubel-resource resource))
+               (args (list "create" "job"
+                           (format "--from=%s/%s" "cronjob" resource)
+                           (format "%s-manual-%d" resource (float-time (current-time))))))
+          (kubel--exec process-name args))
+      (message "[%s] cannot be triggered.\nOnly these resources can be triggered: [cronjobs]." kubel-resource))))
+
+(defun kubel-suspend-cronjob ()
+  "Kubectl suspend a cronjob under cursor."
+  (interactive)
+  (let ((resource (kubel--get-resource-under-cursor)))
+    (if (equal "cronjobs.batch" kubel-resource)
+        (let* ((process-name (format "kubel - suspend cronjob %s - %s" kubel-resource resource))
+               (args (list "patch" kubel-resource resource "-p" "{\"spec\": {\"suspend\": true}}")))
+          (kubel--exec process-name args))
+      (message "[%s] cannot be suspended.\nOnly these resources can be suspended: [cronjobs]." kubel-resource))))
+
+(defun kubel-unsuspend-cronjob ()
+  "Kubectl unsuspend a cronjob under cursor."
+  (interactive)
+  (let ((resource (kubel--get-resource-under-cursor)))
+    (if (equal "cronjobs.batch" kubel-resource)
+        (let* ((process-name (format "kubel - unsuspend cronjob %s - %s" kubel-resource resource))
+               (args (list "patch" kubel-resource resource "-p" "{\"spec\": {\"suspend\": false}}")))
+          (kubel--exec process-name args))
+      (message "[%s] cannot be unsuspended.\nOnly these resources can be unsuspended: [cronjobs]." kubel-resource))))
+
 (defun kubel-set-filter (filter)
   "Set the pod filter.
 
@@ -1247,6 +1279,9 @@ RESET is to be called if the search is nil after the first attempt."
     ("l" "Logs" kubel-log-popup)
     ("e" "Exec" kubel-exec-popup)
     ("j" "Jab" kubel-jab-deployment)
+    ("t" "Trigger" kubel-trigger-cronjob)
+    ("z" "Suspend" kubel-suspend-cronjob)
+    ("Z" "Unsuspend" kubel-unsuspend-cronjob)
     ("S" "Scale replicas" kubel-scale-replicas)]
    ["Settings"
     ("C" "Set context" kubel-set-context)
@@ -1297,6 +1332,9 @@ RESET is to be called if the search is nil after the first attempt."
     (define-key map (kbd "e") 'kubel-exec-popup)
     (define-key map (kbd "!") 'kubel-exec-pod-by-shell-command)
     (define-key map (kbd "j") 'kubel-jab-deployment)
+    (define-key map (kbd "t") 'kubel-trigger-cronjob)
+    (define-key map (kbd "z") 'kubel-suspend-cronjob)
+    (define-key map (kbd "Z") 'kubel-unsuspend-cronjob)
 
     (define-key map (kbd "m") 'kubel-mark-item)
     (define-key map (kbd "u") 'kubel-unmark-item)
